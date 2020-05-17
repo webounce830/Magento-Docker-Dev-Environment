@@ -1,0 +1,65 @@
+FROM alpine:3.5
+
+# Install packages
+RUN \
+  apk --no-cache add php5 php5-fpm php5-mysqli php5-json php5-openssl php5-curl \
+    php5-zlib php5-xml php5-phar php5-intl php5-dom php5-xmlreader php5-ctype \
+    php5-gd php5-soap php5-zip php5-pdo php5-opcache php5-iconv \
+    php5-imap php5-xmlrpc php5-mcrypt php5-exif php5-pdo_mysql \
+    php5-posix php5-shmop php5-xsl php5-wddx php5-bcmath \
+    php5-xdebug \
+    nginx supervisor curl mc mysql-client redis bash git
+
+#php5-mbstring php5-fileinfo php5-redis php5-session php5-simplexml php5-tokenizer php5-xdebug  php5-xmlwriter\
+
+# Configure PHP-FPM
+COPY php-fpm-pool.conf /etc/php5/php-fpm.conf
+COPY php-fpm-pool-xdebug.conf /etc/php5/php-fpm-xdebug.conf
+COPY php-local.ini /etc/php5/conf.d/99-local.ini
+
+RUN \
+  #mv /etc/php/conf.d/xdebug.ini /etc/php/conf.d/xdebug.ini.disabled && \
+  #cp /etc/php5/php.ini-development /etc/php5/php.ini && \
+  cp /etc/php5/php.ini /etc/php5/php-xdebug.ini && \
+  echo "zend_extension=xdebug.so" >>/etc/php5/php-xdebug.ini
+  #mkdir -p /var/cache/php/opcache
+  #cd /usr/local/bin && \
+  #mkdir -p /var/www/magento/var/composer_home && \
+  #ln -s /var/www/magento/var/composer_home /root/.composer && \
+  #wget http://getcomposer.org/installer && \
+  #head -n 3 installer && \
+  #php5 installer && \
+  #rm installer && \
+  #mv composer.phar composer && \
+  #composer -V
+
+# Configure nginx
+RUN \
+  rm /etc/nginx/conf.d/default.conf && \
+  mkdir -p /etc/nginx/ssl && \
+  mkdir -p /var/lib/nginx/logs
+#&& \
+#  chown -R nginx:nginx /var/lib/nginx
+
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx-fastcgi.conf /etc/nginx/conf.d/00-fastcgi.conf
+COPY nginx-m1.conf /etc/nginx/conf.d/10-m1.conf
+COPY local.pem /etc/nginx/ssl/
+
+# Configure supervisord
+COPY supervisord-php5.conf /etc/supervisor/conf.d/supervisord.conf
+
+COPY my.cnf /root/.my.cnf
+
+# Setup document root
+RUN mkdir -p /var/www/magento && \
+  rm -rf /var/www/localhost
+
+# Add application
+WORKDIR /var/www/magento
+
+# Expose the port nginx is reachable on
+EXPOSE 80 443
+
+# Let supervisord start nginx & php-fpm
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
